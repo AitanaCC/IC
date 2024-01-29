@@ -36,9 +36,6 @@ LoRaConfig_t remoteNodeConf = { 0, 0, 0, 0 };
 int remoteRSSI = 0;
 float remoteSNR = 0;
 
-bool waitingAck = false;
-uint32_t ackTimeout = 0;
-const uint32_t ACK_TIMEOUT_MS = 5000;
 
 //-------
 
@@ -108,8 +105,8 @@ void NoRespuesta() {
 // Setup function
 // --------------------------------------------------------------------
 void setup() {
-  Serial.begin(115200);
-  while (!Serial);
+  Serial.begin(9600);
+  while (!Serial) {}
 
   Serial.println("LoRa Duplex with TxDone and Receive callbacks");
   Serial.println("Using binary packets");
@@ -120,7 +117,8 @@ void setup() {
 
   if (!init_PMIC()) {
     Serial.println("Initilization of BQ24195L failed!");
-  } else {
+  }
+  else {
     Serial.println("Initilization of BQ24195L succeeded!");
   }
 
@@ -132,8 +130,8 @@ void setup() {
 
   aplicarParametrosLora();
   LoRa.setSyncWord(0x12);     // Palabra de sincronizaciÃ³n privada por defecto para SX127X
-                              // Usaremos la palabra de sincronizaciÃ³n para crear diferentes
-                              // redes privadas por equipos
+  // Usaremos la palabra de sincronizaciÃ³n para crear diferentes
+  // redes privadas por equipos
   LoRa.setPreambleLength(8);  // NÃºmero de sÃ­mbolos a usar como preÃ¡mbulo
 
 
@@ -172,14 +170,17 @@ void loop() {
   static uint16_t msgCount = 0;
   static uint32_t txInterval_ms = TX_LAPSE_MS;
   static uint32_t tx_begin_ms = 0;
+  uint8_t payload[50];
+  uint8_t payloadLength = 0;
 
   if (!transmitting && ((millis() - lastSendTime_ms) > txInterval_ms)) {
 
     if (sendAck) {
-      uint8_t ackPayload[1] = {0}; 
+      uint8_t ackPayload[1] = { 0 };
       sendMessage(ackPayload, 0, msgCount);
       sendAck = false;
-    }else{
+    }
+    else {
 
       uint8_t payload[50];
       uint8_t payloadLength = 0;
@@ -210,20 +211,15 @@ void loop() {
     txDoneFlag = false;
     tx_begin_ms = millis();
 
-    waitingAck = true;
-    ackTimeout = millis() + ACK_TIMEOUT_MS;
+    // waitingAck = true;
+    //ackTimeout = millis() + ACK_TIMEOUT_MS;
 
     Serial.print("Sending packet ");
     Serial.print(msgCount++);
     Serial.print(": ");
     printBinaryPayload(payload, payloadLength);
   }
-  
-  if(waitingAck && (millis() > ackTimeout)){
-    Serial.println("Timeout waiting for ACK. Reverting configuration");
-    restaurarConfiguracion();
-    waitingAck = false;
-  }
+
 
   if (transmitting && txDoneFlag) {
     uint32_t TxTime_ms = millis() - tx_begin_ms;
@@ -258,7 +254,7 @@ void loop() {
     restaurarConfiguracion();
   }
 
-  
+
 }
 
 // --------------------------------------------------------------------
@@ -276,7 +272,7 @@ void sendMessage(uint8_t* payload, uint8_t payloadLength, uint16_t msgCount) {
   LoRa.write(payloadLength);                   // AÃ±adimos la longitud en bytes del mensaje
   LoRa.write(payload, (size_t)payloadLength);  // AÃ±adimos el mensaje/payload
   LoRa.endPacket(true);                        // Finalizamos el paquete, pero no esperamos a
-                                               // finalice su transmisiÃ³n
+  // finalice su transmisiÃ³n
 }
 
 // --------------------------------------------------------------------
@@ -291,7 +287,7 @@ void onReceive(int packetSize) {
   uint8_t buffer[10];            // Buffer para almacenar el mensaje
   int recipient = LoRa.read();   // DirecciÃ³n del destinatario
   uint8_t sender = LoRa.read();  // DirecciÃ³n del remitente
-                                 // msg ID (High Byte first)
+  // msg ID (High Byte first)
   uint16_t incomingMsgId = ((uint16_t)LoRa.read() << 7) | (uint16_t)LoRa.read();
 
   uint8_t incomingLength = LoRa.read();  // Longitud en bytes del mensaje
@@ -320,7 +316,7 @@ void onReceive(int packetSize) {
     Serial.println("Receiving error: This message is not for me.");
     return;
   }
-    Serial.println("---------Mensaje----------");
+  Serial.println("---------Mensaje----------");
 
   // Imprimimos los detalles del mensaje recibido
   Serial.println("Received from: 0x" + String(sender, HEX));
@@ -355,11 +351,12 @@ void onReceive(int packetSize) {
     Serial.print(" dBm, SNR: ");
     Serial.print(remoteSNR, 1);
     Serial.println(" dB\n");
-            Serial.println("---------Fin del mensaje----------");
+    Serial.println("---------Fin del mensaje----------");
     Serial.println("Se actualiza la configuración del Nodo");
     actualizarConfiguraciones();
     sendAck = true;
-  } else {
+  }
+  else {
     Serial.print("Unexpected payload size: ");
     Serial.print(receivedBytes);
     Serial.println(" bytes\n");
